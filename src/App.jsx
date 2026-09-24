@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabaseClient'
 import Auth from './components/Auth'
@@ -6,6 +5,7 @@ import Auth from './components/Auth'
 function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+
   // ================= DATA STATES =================
 
   const [shoes, setShoes] = useState([])
@@ -13,6 +13,7 @@ function App() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
   const [shoeImageFile, setShoeImageFile] = useState(null)
   const [wishlistImageFile, setWishlistImageFile] = useState(null)
 
@@ -49,23 +50,27 @@ function App() {
   useEffect(() => {
     async function checkSession() {
       const { data, error } = await supabase.auth.getSession()
-      if (error) console.error('Session error:', error)
+
+      if (error) {
+        console.error('Session error:', error)
+      }
+
       setUser(data.session?.user ?? null)
       setAuthLoading(false)
     }
 
     checkSession()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null)
-      }
-    )
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
 
     return () => subscription.unsubscribe()
   }, [])
 
-  // ================= LOAD DATA FROM SUPABASE =================
+  // ================= LOAD DATA =================
 
   const loadShoes = async () => {
     setLoading(true)
@@ -114,7 +119,9 @@ function App() {
   }
 
   useEffect(() => {
-    if (user) loadShoes()
+    if (user) {
+      loadShoes()
+    }
   }, [user])
 
   // ================= FORM HANDLERS =================
@@ -173,6 +180,7 @@ function App() {
 
   const resetShoeForm = () => {
     setShoeImageFile(null)
+
     setShoeForm({
       brand: '',
       model: '',
@@ -186,6 +194,7 @@ function App() {
 
   const resetWishlistForm = () => {
     setWishlistImageFile(null)
+
     setWishlistForm({
       brand: '',
       model: '',
@@ -202,6 +211,7 @@ function App() {
     if (!file) return null
 
     const fileExtension = file.name.split('.').pop()
+
     const fileName = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${fileExtension}`
 
     const { error: uploadError } = await supabase.storage
@@ -262,8 +272,8 @@ function App() {
       await loadShoes()
 
       resetShoeForm()
-      setShoeImageFile(null)
       setShowShoeForm(false)
+
       alert('Shoe saved successfully!')
     } catch (error) {
       console.error('Error adding shoe:', error)
@@ -271,9 +281,6 @@ function App() {
     } finally {
       setSaving(false)
     }
-
-    return
-
   }
 
   // ================= ADD WISHLIST SHOE =================
@@ -315,8 +322,8 @@ function App() {
       await loadShoes()
 
       resetWishlistForm()
-      setWishlistImageFile(null)
       setShowWishlistForm(false)
+
       alert('Wishlist item saved successfully!')
     } catch (error) {
       console.error('Error adding wishlist item:', error)
@@ -324,9 +331,6 @@ function App() {
     } finally {
       setSaving(false)
     }
-
-    return
-
   }
 
   // ================= DELETE COLLECTION SHOE =================
@@ -410,10 +414,12 @@ function App() {
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut()
+
     if (error) {
       alert(`Logout error: ${error.message}`)
       return
     }
+
     setUser(null)
   }
 
@@ -435,7 +441,7 @@ function App() {
     )
   }
 
-  // ================= AUTH / LOADING SCREEN =================
+  // ================= AUTH / LOADING =================
 
   if (authLoading) {
     return (
@@ -454,6 +460,7 @@ function App() {
       <div className="flex min-h-screen items-center justify-center bg-[#050d1d]">
         <div className="text-center">
           <div className="text-4xl">👟</div>
+
           <p className="mt-4 font-semibold">
             Loading SOLESPACE...
           </p>
@@ -470,11 +477,13 @@ function App() {
       {/* ================= NAVBAR ================= */}
 
       <nav className="sticky top-0 z-20 mx-auto flex max-w-7xl items-center justify-between border-b border-white/10 bg-[#050d1d]/90 px-6 py-3 backdrop-blur-xl md:px-12">
+
         <h1 className="text-2xl font-black tracking-[-0.08em] md:text-3xl">
           SOLESPACE<span className="text-blue-500">.</span>
         </h1>
 
         <div className="hidden gap-8 text-xs font-bold uppercase tracking-[0.18em] text-slate-400 md:flex">
+
           <a
             href="#home"
             className="transition-colors hover:text-blue-500"
@@ -495,11 +504,16 @@ function App() {
           >
             Wishlist
           </a>
+
         </div>
 
         <div className="flex items-center gap-2 md:gap-3">
+
           <button
-            onClick={() => setShowShoeForm(!showShoeForm)}
+            onClick={() => {
+              setShowShoeForm(true)
+              setShowWishlistForm(false)
+            }}
             className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:bg-blue-400"
           >
             Add Shoe
@@ -511,19 +525,23 @@ function App() {
           >
             Logout
           </button>
+
         </div>
       </nav>
 
       {/* ================= HERO ================= */}
 
       <main className="relative overflow-hidden px-6 pb-20 pt-10 md:px-12 md:pb-28 md:pt-16">
+
         <div className="pointer-events-none absolute -right-40 -top-40 h-[28rem] w-[28rem] rounded-full bg-blue-500/10 blur-3xl" />
+
         <div className="pointer-events-none absolute left-1/3 top-40 h-72 w-72 rounded-full bg-white/5 blur-3xl" />
 
         <section
           id="home"
           className="mx-auto max-w-7xl"
         >
+
           <p className="mb-5 inline-flex rounded-full border border-blue-400/30 bg-blue-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.28em] text-blue-300">
             Your personal sneaker space
           </p>
@@ -541,6 +559,7 @@ function App() {
           </p>
 
           <div className="mt-5 flex flex-wrap gap-3">
+
             <a
               href="#collection"
               className="rounded-full bg-blue-600 px-6 py-3.5 font-semibold text-white shadow-xl shadow-black/10 transition hover:-translate-y-0.5 hover:bg-blue-400"
@@ -549,12 +568,17 @@ function App() {
             </a>
 
             <button
-              onClick={() => setShowWishlistForm(true)}
+              onClick={() => {
+                setShowWishlistForm(true)
+                setShowShoeForm(false)
+              }}
               className="rounded-full border border-white/10 bg-white/5 px-6 py-3.5 font-semibold transition hover:-translate-y-0.5 hover:bg-white/10"
             >
               Add to Wishlist
             </button>
+
           </div>
+
         </section>
 
         {/* ================= STATS ================= */}
@@ -593,173 +617,185 @@ function App() {
 
         </section>
 
-        {/* ================= ADD SHOE FORM ================= */}
+        {/* ================= ADD SHOE POPUP ================= */}
 
         {showShoeForm && (
-  <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-6 md:items-center">
-    <section className="w-full max-w-4xl rounded-3xl border border-blue-200/10 bg-[#0d1b35] p-5 shadow-2xl md:max-h-[90vh] md:overflow-y-auto md:p-10">
-            <div className="mb-8 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-widest text-blue-500">
-                  Your collection
-                </p>
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-6 md:items-center">
 
-                <h2 className="mt-2 text-3xl font-black">
-                  Add New Shoe
-                </h2>
+            <section className="w-full max-w-4xl rounded-3xl border border-blue-200/10 bg-[#0d1b35] p-5 shadow-2xl md:max-h-[90vh] md:overflow-y-auto md:p-10">
+
+              <div className="mb-8 flex items-center justify-between">
+
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-widest text-blue-500">
+                    Your collection
+                  </p>
+
+                  <h2 className="mt-2 text-3xl font-black">
+                    Add New Shoe
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowShoeForm(false)
+                    resetShoeForm()
+                  }}
+                  className="rounded-full border border-white/10 px-4 py-2 text-sm transition hover:bg-white/10"
+                >
+                  Close
+                </button>
+
               </div>
 
-              <button
-                onClick={() => setShowShoeForm(false)}
-                className="rounded-full border border-white/10 px-4 py-2 text-sm transition hover:bg-white/10"
+              <form
+                onSubmit={handleShoeSubmit}
+                className="space-y-6"
               >
-                Close
-              </button>
-            </div>
 
-            <form
-              onSubmit={handleShoeSubmit}
-              className="space-y-6"
-            >
-              <div className="grid gap-6 md:grid-cols-2">
+                <div className="grid gap-6 md:grid-cols-2">
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold">
+                      Brand *
+                    </label>
+
+                    <input
+                      type="text"
+                      name="brand"
+                      value={shoeForm.brand}
+                      onChange={handleShoeChange}
+                      placeholder="e.g. Nike"
+                      className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold">
+                      Model Name *
+                    </label>
+
+                    <input
+                      type="text"
+                      name="model"
+                      value={shoeForm.model}
+                      onChange={handleShoeChange}
+                      placeholder="e.g. Air Jordan 1"
+                      className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold">
+                      Price (৳) *
+                    </label>
+
+                    <input
+                      type="number"
+                      name="price"
+                      value={shoeForm.price}
+                      onChange={handleShoeChange}
+                      placeholder="12000"
+                      min="0"
+                      className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold">
+                      Shoe Size *
+                    </label>
+
+                    <input
+                      type="text"
+                      name="size"
+                      value={shoeForm.size}
+                      onChange={handleShoeChange}
+                      placeholder="e.g. 42"
+                      className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold">
+                      Purchase Date
+                    </label>
+
+                    <input
+                      type="date"
+                      name="date"
+                      value={shoeForm.date}
+                      onChange={handleShoeChange}
+                      className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold">
+                      Shoe Photo
+                    </label>
+
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleShoeImageChange}
+                      className="w-full rounded-2xl border border-dashed border-white/15 bg-[#07142a] px-3 py-3 text-sm"
+                    />
+                  </div>
+
+                </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold">
-                    Brand *
+                    Notes
                   </label>
 
-                  <input
-                    type="text"
-                    name="brand"
-                    value={shoeForm.brand}
+                  <textarea
+                    name="notes"
+                    value={shoeForm.notes}
                     onChange={handleShoeChange}
-                    placeholder="e.g. Nike"
-                    className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">
-                    Model Name *
-                  </label>
-
-                  <input
-                    type="text"
-                    name="model"
-                    value={shoeForm.model}
-                    onChange={handleShoeChange}
-                    placeholder="e.g. Air Jordan 1"
-                    className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">
-                    Price (৳) *
-                  </label>
-
-                  <input
-                    type="number"
-                    name="price"
-                    value={shoeForm.price}
-                    onChange={handleShoeChange}
-                    placeholder="12000"
-                    min="0"
-                    className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">
-                    Shoe Size *
-                  </label>
-
-                  <input
-                    type="text"
-                    name="size"
-                    value={shoeForm.size}
-                    onChange={handleShoeChange}
-                    placeholder="e.g. 42"
-                    className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">
-                    Purchase Date
-                  </label>
-
-                  <input
-                    type="date"
-                    name="date"
-                    value={shoeForm.date}
-                    onChange={handleShoeChange}
+                    placeholder="Write something about your shoe..."
+                    rows="4"
                     className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
                   />
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">
-                    Shoe Photo
-                  </label>
-
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleShoeImageChange}
-                    className="w-full rounded-2xl border border-dashed border-white/15 bg-[#07142a] px-3 py-3 text-sm"
+                {shoeForm.image && (
+                  <img
+                    src={shoeForm.image}
+                    alt="Shoe preview"
+                    className="h-56 w-full rounded-2xl object-cover shadow-lg md:w-72"
                   />
-                </div>
+                )}
 
-              </div>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="w-full rounded-2xl bg-blue-600 py-4 font-semibold text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Add Shoe to Collection'}
+                </button>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold">
-                  Notes
-                </label>
+              </form>
 
-                <textarea
-                  name="notes"
-                  value={shoeForm.notes}
-                  onChange={handleShoeChange}
-                  placeholder="Write something about your shoe..."
-                  rows="4"
-                  className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
-                />
-              </div>
+            </section>
+          </div>
+        )}
 
-              {shoeForm.image && (
-                <img
-                  src={shoeForm.image}
-                  alt="Shoe preview"
-                  className="h-56 w-full rounded-2xl object-cover shadow-lg md:w-72"
-                />
-              )}
-
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full rounded-2xl bg-blue-600 py-4 font-semibold text-white shadow-xl shadow-black/10 transition hover:-translate-y-0.5 hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : 'Add Shoe to Collection'}
-              </button>
-
-            </form>
-         
-    </section>
-  </div>
-)}
         {/* ================= COLLECTION ================= */}
 
         <section
           id="collection"
           className="mx-auto mt-10 max-w-7xl"
         >
+
           <div className="mb-8 flex items-end justify-between">
+
             <div>
               <p className="text-sm font-semibold uppercase tracking-widest text-blue-500">
                 Your pairs
@@ -773,10 +809,13 @@ function App() {
             <span className="rounded-full bg-[#0d1b35] px-4 py-2 text-sm font-semibold">
               {shoes.length} Shoes
             </span>
+
           </div>
 
           {shoes.length === 0 ? (
+
             <div className="rounded-2xl bg-[#0d1b35] p-7 text-center shadow-sm">
+
               <p className="text-5xl">👟</p>
 
               <h3 className="mt-4 text-xl font-bold">
@@ -788,22 +827,32 @@ function App() {
               </p>
 
               <button
-                onClick={() => setShowShoeForm(true)}
+                onClick={() => {
+                  setShowShoeForm(true)
+                  setShowWishlistForm(false)
+                }}
                 className="mt-6 rounded-full bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-400"
               >
                 Add First Shoe
               </button>
+
             </div>
+
           ) : (
+
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+
               {shoes.map((shoe) => (
+
                 <div
                   key={shoe.id}
-                  className="group overflow-hidden rounded-3xl border border-blue-200/10 bg-[#0d1b35] shadow-[0_20px_60px_-35px_rgba(15,76,129,0.28)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_30px_80px_-35px_rgba(37,99,235,0.22)]"
+                  className="group overflow-hidden rounded-3xl border border-blue-200/10 bg-[#0d1b35] shadow-[0_20px_60px_-35px_rgba(15,76,129,0.28)] transition duration-300 hover:-translate-y-1"
                 >
+
                   <ShoeImage shoe={shoe} />
 
                   <div className="p-7">
+
                     <p className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
                       {shoe.brand}
                     </p>
@@ -838,156 +887,172 @@ function App() {
                     >
                       Delete Shoe
                     </button>
+
                   </div>
                 </div>
+
               ))}
+
             </div>
+
           )}
+
         </section>
 
-        {/* ================= WISHLIST FORM ================= */}
+        {/* ================= WISHLIST POPUP ================= */}
 
         {showWishlistForm && (
-          <section className="mx-auto mt-10 max-w-4xl rounded-3xl border border-blue-200/10 bg-[#0d1b35] p-5 shadow-[0_30px_80px_-45px_rgba(0,0,0,0.45)] md:p-10">
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-6 md:items-center">
 
-            <div className="mb-8 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-widest text-blue-500">
-                  Future purchases
-                </p>
+            <section className="w-full max-w-4xl rounded-3xl border border-blue-200/10 bg-[#0d1b35] p-5 shadow-2xl md:max-h-[90vh] md:overflow-y-auto md:p-10">
 
-                <h2 className="mt-2 text-3xl font-black">
-                  Add to Wishlist
-                </h2>
+              <div className="mb-8 flex items-center justify-between">
+
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-widest text-blue-500">
+                    Future purchases
+                  </p>
+
+                  <h2 className="mt-2 text-3xl font-black">
+                    Add to Wishlist ❤️
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowWishlistForm(false)
+                    resetWishlistForm()
+                  }}
+                  className="rounded-full border border-white/10 px-4 py-2 text-sm transition hover:bg-white/10"
+                >
+                  Close
+                </button>
+
               </div>
 
-              <button
-                onClick={() => setShowWishlistForm(false)}
-                className="rounded-full border border-white/10 px-4 py-2 text-sm transition hover:bg-white/10"
+              <form
+                onSubmit={handleWishlistSubmit}
+                className="space-y-6"
               >
-                Close
-              </button>
-            </div>
 
-            <form
-              onSubmit={handleWishlistSubmit}
-              className="space-y-6"
-            >
-              <div className="grid gap-6 md:grid-cols-2">
+                <div className="grid gap-6 md:grid-cols-2">
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">
-                    Brand *
-                  </label>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold">
+                      Brand *
+                    </label>
 
-                  <input
-                    type="text"
-                    name="brand"
-                    value={wishlistForm.brand}
-                    onChange={handleWishlistChange}
-                    placeholder="e.g. Nike"
-                    className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
-                    required
-                  />
+                    <input
+                      type="text"
+                      name="brand"
+                      value={wishlistForm.brand}
+                      onChange={handleWishlistChange}
+                      placeholder="e.g. Nike"
+                      className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold">
+                      Model Name *
+                    </label>
+
+                    <input
+                      type="text"
+                      name="model"
+                      value={wishlistForm.model}
+                      onChange={handleWishlistChange}
+                      placeholder="e.g. Air Jordan 4"
+                      className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold">
+                      Expected Price (৳) *
+                    </label>
+
+                    <input
+                      type="number"
+                      name="price"
+                      value={wishlistForm.price}
+                      onChange={handleWishlistChange}
+                      placeholder="15000"
+                      min="0"
+                      className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold">
+                      Shoe Size *
+                    </label>
+
+                    <input
+                      type="text"
+                      name="size"
+                      value={wishlistForm.size}
+                      onChange={handleWishlistChange}
+                      placeholder="e.g. 42"
+                      className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
+                      required
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-sm font-semibold">
+                      Shoe Photo
+                    </label>
+
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleWishlistImageChange}
+                      className="w-full rounded-2xl border border-dashed border-white/15 bg-[#07142a] px-3 py-3 text-sm"
+                    />
+                  </div>
+
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold">
-                    Model Name *
+                    Notes
                   </label>
 
-                  <input
-                    type="text"
-                    name="model"
-                    value={wishlistForm.model}
+                  <textarea
+                    name="notes"
+                    value={wishlistForm.notes}
                     onChange={handleWishlistChange}
-                    placeholder="e.g. Air Jordan 4"
+                    placeholder="Why do you want this shoe?"
+                    rows="4"
                     className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
-                    required
                   />
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">
-                    Expected Price (৳) *
-                  </label>
-
-                  <input
-                    type="number"
-                    name="price"
-                    value={wishlistForm.price}
-                    onChange={handleWishlistChange}
-                    placeholder="15000"
-                    min="0"
-                    className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
-                    required
+                {wishlistForm.image && (
+                  <img
+                    src={wishlistForm.image}
+                    alt="Wishlist shoe preview"
+                    className="h-56 w-full rounded-2xl object-cover shadow-lg md:w-72"
                   />
-                </div>
+                )}
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">
-                    Shoe Size *
-                  </label>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="w-full rounded-2xl bg-blue-500 py-4 font-semibold text-white shadow-xl shadow-blue-500/20 transition hover:-translate-y-0.5 hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Save to Wishlist ❤️'}
+                </button>
 
-                  <input
-                    type="text"
-                    name="size"
-                    value={wishlistForm.size}
-                    onChange={handleWishlistChange}
-                    placeholder="e.g. 42"
-                    className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
-                    required
-                  />
-                </div>
+              </form>
 
-                <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-semibold">
-                    Shoe Photo
-                  </label>
-
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleWishlistImageChange}
-                    className="w-full rounded-2xl border border-dashed border-white/15 bg-[#07142a] px-3 py-3 text-sm"
-                  />
-                </div>
-
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold">
-                  Notes
-                </label>
-
-                <textarea
-                  name="notes"
-                  value={wishlistForm.notes}
-                  onChange={handleWishlistChange}
-                  placeholder="Why do you want this shoe?"
-                  rows="4"
-                  className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-[#0d1b35] focus:ring-4 focus:ring-blue-500/10"
-                />
-              </div>
-
-              {wishlistForm.image && (
-                <img
-                  src={wishlistForm.image}
-                  alt="Wishlist shoe preview"
-                  className="h-56 w-full rounded-2xl object-cover shadow-lg md:w-72"
-                />
-              )}
-
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full rounded-2xl bg-blue-500 py-4 font-semibold text-white shadow-xl shadow-blue-500/20 transition hover:-translate-y-0.5 hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : 'Save to Wishlist ❤️'}
-              </button>
-
-            </form>
-          </section>
+            </section>
+          </div>
         )}
 
         {/* ================= WISHLIST ================= */}
@@ -996,7 +1061,9 @@ function App() {
           id="wishlist"
           className="mx-auto mt-10 max-w-7xl"
         >
+
           <div className="mb-8 flex items-end justify-between">
+
             <div>
               <p className="text-sm font-semibold uppercase tracking-widest text-blue-500">
                 Future purchases
@@ -1010,10 +1077,13 @@ function App() {
             <span className="rounded-full bg-[#0d1b35] px-4 py-2 text-sm font-semibold">
               {wishlist.length} Items
             </span>
+
           </div>
 
           {wishlist.length === 0 ? (
+
             <div className="rounded-2xl bg-[#0d1b35] p-7 text-center shadow-sm">
+
               <p className="text-4xl">❤️</p>
 
               <h3 className="mt-4 text-xl font-bold">
@@ -1025,22 +1095,32 @@ function App() {
               </p>
 
               <button
-                onClick={() => setShowWishlistForm(true)}
+                onClick={() => {
+                  setShowWishlistForm(true)
+                  setShowShoeForm(false)
+                }}
                 className="mt-6 rounded-full bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-400"
               >
                 Add First Wishlist Shoe
               </button>
+
             </div>
+
           ) : (
+
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+
               {wishlist.map((shoe) => (
+
                 <div
                   key={shoe.id}
-                  className="group overflow-hidden rounded-3xl border border-blue-200/10 bg-[#0d1b35] shadow-[0_20px_60px_-35px_rgba(15,76,129,0.28)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_30px_80px_-35px_rgba(37,99,235,0.22)]"
+                  className="group overflow-hidden rounded-3xl border border-blue-200/10 bg-[#0d1b35] shadow-[0_20px_60px_-35px_rgba(15,76,129,0.28)] transition duration-300 hover:-translate-y-1"
                 >
+
                   <ShoeImage shoe={shoe} />
 
                   <div className="p-7">
+
                     <p className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
                       {shoe.brand}
                     </p>
@@ -1076,11 +1156,16 @@ function App() {
                     >
                       Remove from Wishlist
                     </button>
+
                   </div>
                 </div>
+
               ))}
+
             </div>
+
           )}
+
         </section>
 
       </main>
