@@ -596,8 +596,8 @@ function App() {
         {/* ================= ADD SHOE FORM ================= */}
 
         {showShoeForm && (
-          <section className="mx-auto mt-10 max-w-4xl rounded-3xl border border-blue-200/10 bg-[#0d1b35] p-5 shadow-[0_30px_80px_-45px_rgba(0,0,0,0.45)] md:p-10">
-
+  <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-6 md:items-center">
+    <section className="w-full max-w-4xl rounded-3xl border border-blue-200/10 bg-[#0d1b35] p-5 shadow-2xl md:max-h-[90vh] md:overflow-y-auto md:p-10">
             <div className="mb-8 flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-widest text-blue-500">
@@ -749,9 +749,10 @@ function App() {
               </button>
 
             </form>
-          </section>
-        )}
-
+         
+    </section>
+  </div>
+)}
         {/* ================= COLLECTION ================= */}
 
         <section
