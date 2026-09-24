@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
-export default function Auth({ onLogin }) {
+export default function Auth({ onLogin, onCancel }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,24 +30,24 @@ export default function Auth({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f3ee] flex items-center justify-center px-4">
+    <div className="flex min-h-screen items-center justify-center bg-[#f5f3ee] px-4">
       <form
         onSubmit={handleLogin}
-        className="w-full max-w-md bg-white rounded-3xl p-8 shadow-xl"
+        className="relative w-full max-w-md rounded-3xl bg-white p-8 shadow-xl"
       >
         <p className="text-sm font-semibold tracking-[0.25em] text-orange-600">
           SOLESPACE
         </p>
 
-        <h1 className="text-3xl font-bold mt-3 text-gray-900">
+        <h1 className="mt-3 text-3xl font-bold text-gray-900">
           Admin Login
         </h1>
 
-        <p className="text-gray-500 mt-2 mb-6">
+        <p className="mb-6 mt-2 text-gray-500">
           Login to manage your shoe collection.
         </p>
 
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="mb-2 block text-sm font-medium text-gray-700">
           Email
         </label>
 
@@ -57,10 +57,10 @@ export default function Auth({ onLogin }) {
           onChange={(event) => setEmail(event.target.value)}
           placeholder="Admin email"
           required
-          className="w-full border rounded-xl px-4 py-3 mb-4"
+          className="mb-4 w-full rounded-xl border px-4 py-3 text-gray-900"
         />
 
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="mb-2 block text-sm font-medium text-gray-700">
           Password
         </label>
 
@@ -70,11 +70,11 @@ export default function Auth({ onLogin }) {
           onChange={(event) => setPassword(event.target.value)}
           placeholder="Password"
           required
-          className="w-full border rounded-xl px-4 py-3 mb-4"
+          className="mb-4 w-full rounded-xl border px-4 py-3 text-gray-900"
         />
 
         {error && (
-          <p className="text-red-600 text-sm mb-4">
+          <p className="mb-4 text-sm text-red-600">
             {error}
           </p>
         )}
@@ -82,10 +82,20 @@ export default function Auth({ onLogin }) {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-gray-900 text-white rounded-xl py-3 font-semibold disabled:opacity-50"
+          className="w-full rounded-xl bg-gray-900 py-3 font-semibold text-white disabled:opacity-50"
         >
           {loading ? 'Logging in...' : 'Login'}
         </button>
+
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="mt-3 w-full rounded-xl border border-gray-300 py-3 font-semibold text-gray-700 hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+        )}
       </form>
     </div>
   )
