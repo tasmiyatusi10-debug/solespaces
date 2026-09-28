@@ -1,7 +1,5 @@
-
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabaseClient'
-import Auth from './components/Auth'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -9,6 +7,7 @@ function App() {
 
   const [shoes, setShoes] = useState([])
   const [wishlist, setWishlist] = useState([])
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -18,6 +17,11 @@ function App() {
   const [showShoeForm, setShowShoeForm] = useState(false)
   const [showWishlistForm, setShowWishlistForm] = useState(false)
   const [showLogin, setShowLogin] = useState(false)
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [authSaving, setAuthSaving] = useState(false)
+  const [isSignup, setIsSignup] = useState(false)
 
   const [shoeForm, setShoeForm] = useState({
     brand: '',
@@ -38,32 +42,40 @@ function App() {
     image: '',
   })
 
-  // ================= AUTHENTICATION =================
+  const [ratingStats, setRatingStats] = useState({})
 
   useEffect(() => {
-    async function checkSession() {
-      const { data, error } = await supabase.auth.getSession()
+    let mounted = true
 
-      if (error) {
-        console.error('Session error:', error)
+    const getSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (mounted) {
+        setUser(session?.user ?? null)
+        setAuthLoading(false)
       }
-
-      setUser(data.session?.user ?? null)
-      setAuthLoading(false)
     }
 
-    checkSession()
+    getSession()
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
+      setAuthLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
-  // ================= LOAD PUBLIC DATA =================
+  useEffect(() => {
+    loadShoes()
+  }, [user])
 
   const loadShoes = async () => {
     setLoading(true)
@@ -74,49 +86,148 @@ function App() {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error loading shoes:', error)
-      alert('Could not load shoes from database.')
+      console.error('Load shoes error:', error)
       setLoading(false)
       return
     }
 
-    const collectionShoes = data
+    const collection = (data || [])
       .filter((shoe) => !shoe.is_wishlist)
       .map((shoe) => ({
         id: shoe.id,
         brand: shoe.brand,
         model: shoe.model,
-        price: String(shoe.price ?? ''),
-        size: shoe.shoe_size ?? '',
-        date: shoe.purchase_date ?? '',
-        notes: shoe.notes ?? '',
-        image: shoe.image_url ?? '',
+        price: shoe.price,
+        size: shoe.shoe_size,
+        date: shoe.purchase_date,
+        notes: shoe.notes,
+        image: shoe.image_url,
         owner_id: shoe.owner_id,
       }))
 
-    const wishlistShoes = data
+    const wish = (data || [])
       .filter((shoe) => shoe.is_wishlist)
       .map((shoe) => ({
         id: shoe.id,
         brand: shoe.brand,
         model: shoe.model,
-        price: String(shoe.price ?? ''),
-        size: shoe.shoe_size ?? '',
-        notes: shoe.notes ?? '',
-        image: shoe.image_url ?? '',
+        price: shoe.price,
+        size: shoe.shoe_size,
+        notes: shoe.notes,
+        image: shoe.image_url,
         owner_id: shoe.owner_id,
       }))
 
-    setShoes(collectionShoes)
-    setWishlist(wishlistShoes)
+    setShoes(collection)
+
+    if (user) {
+      setWishlist(wish)
+    } else {
+      setWishlist([])
+    }
+
+    await loadRatings(collection)
+
     setLoading(false)
   }
 
-  useEffect(() => {
-    loadShoes()
-  }, [])
+  const loadRatings = async (shoeList) => {
+    if (!shoeList || shoeList.length === 0) {
+      setRatingStats({})
+      return
+    }
 
-  // ================= LOGIN CHECK =================
+    const shoeIds = shoeList.map((shoe) => shoe.id)
+
+    const { data, error } = await supabase
+      .from('shoe_ratings')
+      .select('shoe_id, rating')
+      .in('shoe_id', shoeIds)
+
+    if (error) {
+      console.error('Load ratings error:', error)
+      return
+    }
+
+    const stats = {}
+
+    shoeIds.forEach((id) => {
+      const ratings = (data || [])
+        .filter((item) => item.shoe_id === id)
+        .map((item) => Number(item.rating))
+
+      if (ratings.length === 0) {
+        stats[id] = {
+          average: 0,
+          count: 0,
+        }
+      } else {
+        const total = ratings.reduce((sum, rating) => sum + rating, 0)
+
+        stats[id] = {
+          average: total / ratings.length,
+          count: ratings.length,
+        }
+      }
+    })
+
+    setRatingStats(stats)
+  }
+
+  const handleLogin = async (e) => {
+    e.preventDefault()
+
+    if (!email || !password) {
+      alert('Please enter email and password.')
+      return
+    }
+
+    try {
+      setAuthSaving(true)
+
+      if (isSignup) {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+        })
+
+        if (error) {
+          alert(error.message)
+          return
+        }
+
+        if (data.user) {
+          setUser(data.user)
+          setShowLogin(false)
+          setEmail('')
+          setPassword('')
+          alert('Account created successfully!')
+        }
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+
+        if (error) {
+          alert(error.message)
+          return
+        }
+
+        if (data.user) {
+          setUser(data.user)
+          setShowLogin(false)
+          setEmail('')
+          setPassword('')
+        }
+      }
+    } catch (error) {
+      console.error(error)
+      alert('Something went wrong.')
+    } finally {
+      setAuthSaving(false)
+    }
+  }
 
   const requireLogin = () => {
     if (!user) {
@@ -127,59 +238,51 @@ function App() {
     return true
   }
 
-  // ================= FORM HANDLERS =================
+  const handleShoeChange = (e) => {
+    const { name, value } = e.target
 
-  const handleShoeChange = (event) => {
-    const { name, value } = event.target
-
-    setShoeForm((previousForm) => ({
-      ...previousForm,
+    setShoeForm((prev) => ({
+      ...prev,
       [name]: value,
     }))
   }
 
-  const handleWishlistChange = (event) => {
-    const { name, value } = event.target
+  const handleWishlistChange = (e) => {
+    const { name, value } = e.target
 
-    setWishlistForm((previousForm) => ({
-      ...previousForm,
+    setWishlistForm((prev) => ({
+      ...prev,
       [name]: value,
     }))
   }
 
-  // ================= IMAGE HANDLERS =================
-
-  const handleShoeImageChange = (event) => {
-    const file = event.target.files[0]
+  const handleShoeImageChange = (e) => {
+    const file = e.target.files?.[0]
 
     if (!file) return
 
     setShoeImageFile(file)
 
-    setShoeForm((previousForm) => ({
-      ...previousForm,
+    setShoeForm((prev) => ({
+      ...prev,
       image: URL.createObjectURL(file),
     }))
   }
 
-  const handleWishlistImageChange = (event) => {
-    const file = event.target.files[0]
+  const handleWishlistImageChange = (e) => {
+    const file = e.target.files?.[0]
 
     if (!file) return
 
     setWishlistImageFile(file)
 
-    setWishlistForm((previousForm) => ({
-      ...previousForm,
+    setWishlistForm((prev) => ({
+      ...prev,
       image: URL.createObjectURL(file),
     }))
   }
 
-  // ================= RESET FORMS =================
-
   const resetShoeForm = () => {
-    setShoeImageFile(null)
-
     setShoeForm({
       brand: '',
       model: '',
@@ -189,11 +292,11 @@ function App() {
       notes: '',
       image: '',
     })
+
+    setShoeImageFile(null)
   }
 
   const resetWishlistForm = () => {
-    setWishlistImageFile(null)
-
     setWishlistForm({
       brand: '',
       model: '',
@@ -202,39 +305,35 @@ function App() {
       notes: '',
       image: '',
     })
-  }
 
-  // ================= IMAGE UPLOAD =================
+    setWishlistImageFile(null)
+  }
 
   const uploadImage = async (file) => {
     if (!file || !user) return null
 
-    const fileExtension = file.name.split('.').pop()
+    const extension = file.name.split('.').pop()
 
-    const fileName = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${fileExtension}`
+    const filePath = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`
 
     const { error: uploadError } = await supabase.storage
       .from('shoe-images')
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: false,
-      })
+      .upload(filePath, file)
 
     if (uploadError) {
+      console.error('Image upload error:', uploadError)
       throw uploadError
     }
 
     const { data } = supabase.storage
       .from('shoe-images')
-      .getPublicUrl(fileName)
+      .getPublicUrl(filePath)
 
     return data.publicUrl
   }
 
-  // ================= ADD COLLECTION SHOE =================
-
-  const handleShoeSubmit = async (event) => {
-    event.preventDefault()
+  const handleShoeSubmit = async (e) => {
+    e.preventDefault()
 
     if (!requireLogin()) return
 
@@ -244,49 +343,51 @@ function App() {
       !shoeForm.price ||
       !shoeForm.size
     ) {
-      alert('Please fill in Brand, Model, Price, and Size.')
+      alert('Please fill in Brand, Model, Price and Size.')
       return
     }
 
-    setSaving(true)
-
     try {
-      const imageUrl = await uploadImage(shoeImageFile)
+      setSaving(true)
 
-      const { error } = await supabase
-        .from('shoes')
-        .insert({
-          brand: shoeForm.brand,
-          model: shoeForm.model,
-          price: Number(shoeForm.price),
-          shoe_size: shoeForm.size,
-          purchase_date: shoeForm.date || null,
-          notes: shoeForm.notes,
-          image_url: imageUrl,
-          is_wishlist: false,
-          owner_id: user.id,
-        })
+      let imageUrl = null
 
-      if (error) throw error
+      if (shoeImageFile) {
+        imageUrl = await uploadImage(shoeImageFile)
+      }
 
-      await loadShoes()
+      const { error } = await supabase.from('shoes').insert({
+        brand: shoeForm.brand,
+        model: shoeForm.model,
+        price: Number(shoeForm.price),
+        shoe_size: shoeForm.size,
+        purchase_date: shoeForm.date || null,
+        notes: shoeForm.notes,
+        image_url: imageUrl,
+        is_wishlist: false,
+        owner_id: user.id,
+      })
+
+      if (error) {
+        console.error('Save shoe error:', error)
+        alert('Could not save shoe. Please check Supabase policy.')
+        return
+      }
 
       resetShoeForm()
       setShowShoeForm(false)
 
-      alert('Shoe saved successfully!')
+      await loadShoes()
     } catch (error) {
-      console.error('Error adding shoe:', error)
-      alert(`Could not save shoe: ${error.message}`)
+      console.error(error)
+      alert('Something went wrong while saving the shoe.')
     } finally {
       setSaving(false)
     }
   }
 
-  // ================= ADD WISHLIST SHOE =================
-
-  const handleWishlistSubmit = async (event) => {
-    event.preventDefault()
+  const handleWishlistSubmit = async (e) => {
+    e.preventDefault()
 
     if (!requireLogin()) return
 
@@ -296,55 +397,57 @@ function App() {
       !wishlistForm.price ||
       !wishlistForm.size
     ) {
-      alert('Please fill in Brand, Model, Price, and Size.')
+      alert('Please fill in Brand, Model, Price and Size.')
       return
     }
 
-    setSaving(true)
-
     try {
-      const imageUrl = await uploadImage(wishlistImageFile)
+      setSaving(true)
 
-      const { error } = await supabase
-        .from('shoes')
-        .insert({
-          brand: wishlistForm.brand,
-          model: wishlistForm.model,
-          price: Number(wishlistForm.price),
-          shoe_size: wishlistForm.size,
-          purchase_date: null,
-          notes: wishlistForm.notes,
-          image_url: imageUrl,
-          is_wishlist: true,
-          owner_id: user.id,
-        })
+      let imageUrl = null
 
-      if (error) throw error
+      if (wishlistImageFile) {
+        imageUrl = await uploadImage(wishlistImageFile)
+      }
 
-      await loadShoes()
+      const { error } = await supabase.from('shoes').insert({
+        brand: wishlistForm.brand,
+        model: wishlistForm.model,
+        price: Number(wishlistForm.price),
+        shoe_size: wishlistForm.size,
+        purchase_date: null,
+        notes: wishlistForm.notes,
+        image_url: imageUrl,
+        is_wishlist: true,
+        owner_id: user.id,
+      })
+
+      if (error) {
+        console.error('Save wishlist error:', error)
+        alert('Could not save wishlist item.')
+        return
+      }
 
       resetWishlistForm()
       setShowWishlistForm(false)
 
-      alert('Wishlist item saved successfully!')
+      await loadShoes()
     } catch (error) {
-      console.error('Error adding wishlist item:', error)
-      alert(`Could not save wishlist item: ${error.message}`)
+      console.error(error)
+      alert('Something went wrong while saving wishlist item.')
     } finally {
       setSaving(false)
     }
   }
 
-  // ================= DELETE COLLECTION SHOE =================
-
   const deleteShoe = async (id) => {
-    if (!requireLogin()) return
+    if (!user) return
 
-    const confirmDelete = window.confirm(
+    const confirmed = window.confirm(
       'Are you sure you want to delete this shoe?'
     )
 
-    if (!confirmDelete) return
+    if (!confirmed) return
 
     const { error } = await supabase
       .from('shoes')
@@ -353,7 +456,7 @@ function App() {
       .eq('owner_id', user.id)
 
     if (error) {
-      console.error('Error deleting shoe:', error)
+      console.error('Delete shoe error:', error)
       alert('Could not delete shoe.')
       return
     }
@@ -361,16 +464,14 @@ function App() {
     await loadShoes()
   }
 
-  // ================= DELETE WISHLIST SHOE =================
+  const deleteWishlist = async (id) => {
+    if (!user) return
 
-  const deleteWishlistShoe = async (id) => {
-    if (!requireLogin()) return
-
-    const confirmDelete = window.confirm(
-      'Remove this shoe from your wishlist?'
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this wishlist item?'
     )
 
-    if (!confirmDelete) return
+    if (!confirmed) return
 
     const { error } = await supabase
       .from('shoes')
@@ -379,537 +480,507 @@ function App() {
       .eq('owner_id', user.id)
 
     if (error) {
-      console.error('Error deleting wishlist shoe:', error)
-      alert('Could not remove wishlist item.')
+      console.error('Delete wishlist error:', error)
+      alert('Could not delete wishlist item.')
       return
     }
 
     await loadShoes()
   }
 
-  // ================= MOVE TO COLLECTION =================
-
   const moveToCollection = async (shoe) => {
-    if (!requireLogin()) return
+    if (!user) return
 
-    const confirmMove = window.confirm(
-      'Move this shoe to your collection?'
-    )
-
-    if (!confirmMove) return
+    const today = new Date().toISOString().split('T')[0]
 
     const { error } = await supabase
       .from('shoes')
       .update({
         is_wishlist: false,
-        purchase_date: new Date().toISOString().split('T')[0],
+        purchase_date: today,
       })
       .eq('id', shoe.id)
       .eq('owner_id', user.id)
 
     if (error) {
-      console.error('Error moving shoe:', error)
+      console.error('Move to collection error:', error)
       alert('Could not move shoe to collection.')
       return
     }
 
     await loadShoes()
-
-    alert('Shoe moved to your collection!')
   }
 
-  // ================= LOGOUT =================
+  const handleRating = async (shoeId, rating) => {
+    const storageKey = `shoe-rated-${shoeId}`
 
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut()
-
-    if (error) {
-      alert(`Logout error: ${error.message}`)
+    if (localStorage.getItem(storageKey)) {
+      alert('You have already rated this shoe.')
       return
     }
 
+    const { error } = await supabase.from('shoe_ratings').insert({
+      shoe_id: shoeId,
+      rating: Number(rating),
+    })
+
+    if (error) {
+      console.error('Rating error:', error)
+      alert('Could not submit rating.')
+      return
+    }
+
+    localStorage.setItem(storageKey, 'true')
+
+    await loadRatings(shoes)
+
+    alert('Thanks for rating this shoe!')
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
     setUser(null)
   }
 
-  // ================= REUSABLE IMAGE =================
-
-  const ShoeImage = ({ shoe }) => {
+  if (authLoading) {
     return (
-      <div className="relative flex h-64 items-center justify-center overflow-hidden bg-[#e8e6e0]">
-        {shoe.image ? (
-          <img
-            src={shoe.image}
-            alt={shoe.model}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <span className="text-7xl">👟</span>
-        )}
+      <div className="min-h-screen bg-[#050d1d] text-white flex items-center justify-center">
+        <p className="text-white/60">Loading...</p>
       </div>
     )
   }
-
-  // ================= SHOE CARD =================
-
-  const ShoeCard = ({ shoe, isWishlist = false }) => {
-    return (
-      <div className="group overflow-hidden rounded-3xl border border-blue-200/10 bg-[#0d1b35] shadow-[0_20px_60px_-35px_rgba(15,76,129,0.28)] transition duration-300 hover:-translate-y-1">
-        <ShoeImage shoe={shoe} />
-
-        <div className="p-7">
-          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
-            {shoe.brand}
-          </p>
-
-          <h3 className="mt-2 text-xl font-black tracking-[-0.03em]">
-            {shoe.model}
-          </h3>
-
-          <p className="mt-3 text-lg font-black">
-            ৳{Number(shoe.price).toLocaleString()}
-          </p>
-
-          <p className="mt-2 text-xs font-medium text-slate-400">
-            Size: {shoe.size}
-          </p>
-
-          {!isWishlist && shoe.date && (
-            <p className="mt-2 text-xs font-medium text-slate-400">
-              Purchased: {shoe.date}
-            </p>
-          )}
-
-          {shoe.notes && (
-            <p className="mt-4 text-sm leading-relaxed text-slate-300">
-              {shoe.notes}
-            </p>
-          )}
-
-          {isWishlist ? (
-            <>
-              <button
-                onClick={() => moveToCollection(shoe)}
-                className="mt-4 w-full rounded-2xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
-              >
-                Move to Collection
-              </button>
-
-              <button
-                onClick={() => deleteWishlistShoe(shoe.id)}
-                className="mt-3 w-full rounded-2xl border border-red-500/30 py-3 text-sm font-semibold text-red-500 transition hover:bg-red-500/10"
-              >
-                Remove from Wishlist
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => deleteShoe(shoe.id)}
-              className="mt-4 w-full rounded-2xl border border-red-500/30 py-3 text-sm font-semibold text-red-500 transition hover:bg-red-500/10"
-            >
-              Delete Shoe
-            </button>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  // ================= LOADING =================
-
-  if (authLoading || loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#050d1d] text-white">
-        <div className="text-center">
-          <div className="text-4xl">👟</div>
-          <p className="mt-4 font-semibold">
-            Loading SOLESPACE...
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  // ================= MAIN UI =================
 
   return (
-    <div className="min-h-screen bg-[#050d1d] text-slate-100 selection:bg-blue-500/30">
-
-      {/* ================= NAVBAR ================= */}
-
-      <nav className="sticky top-0 z-20 mx-auto flex max-w-7xl items-center justify-between border-b border-white/10 bg-[#050d1d]/90 px-6 py-3 backdrop-blur-xl md:px-12">
-        <h1 className="text-2xl font-black tracking-[-0.08em] md:text-3xl">
-          SOLESPACE<span className="text-blue-500">.</span>
-        </h1>
-
-        <div className="hidden gap-8 text-xs font-bold uppercase tracking-[0.18em] text-slate-400 md:flex">
-          <a href="#home" className="transition-colors hover:text-blue-500">
-            Home
-          </a>
-
-          <a href="#collection" className="transition-colors hover:text-blue-500">
-            Collection
-          </a>
-
-          <a href="#wishlist" className="transition-colors hover:text-blue-500">
-            Wishlist
-          </a>
-        </div>
-
-        <div className="flex items-center gap-2 md:gap-3">
-          <button
-            onClick={() => {
-              if (!requireLogin()) return
-
-              setShowShoeForm(true)
-              setShowWishlistForm(false)
-            }}
-            className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-400"
+    <div className="min-h-screen bg-[#050d1d] text-white">
+      <nav className="sticky top-0 z-40 border-b border-white/10 bg-[#050d1d]/95 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+          <a
+            href="#home"
+            className="text-xl sm:text-2xl font-black tracking-tight"
           >
-            Add Shoe
-          </button>
+            SOLESPACE<span className="text-blue-400">.</span>
+          </a>
 
-          {user ? (
-            <button
-              onClick={handleLogout}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold transition hover:bg-white/10"
-            >
-              Logout
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowLogin(true)}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold transition hover:bg-white/10"
-            >
-              Login
-            </button>
-          )}
+          <div className="hidden md:flex items-center gap-6 text-sm text-white/70">
+            <a href="#home" className="hover:text-white transition">
+              Home
+            </a>
+
+            <a href="#collection" className="hover:text-white transition">
+              Collection
+            </a>
+
+            <a href="#wishlist" className="hover:text-white transition">
+              Wishlist
+            </a>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                <button
+                  onClick={() => setShowShoeForm(true)}
+                  className="bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
+                >
+                  + Add Shoe
+                </button>
+
+                <button
+                  onClick={handleLogout}
+                  className="hidden sm:block border border-white/10 hover:bg-white/5 px-4 py-2 rounded-xl text-sm transition"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setShowLogin(true)}
+                className="bg-blue-500 hover:bg-blue-400 px-4 py-2 rounded-xl text-sm font-semibold transition"
+              >
+                Login
+              </button>
+            )}
+          </div>
         </div>
       </nav>
 
-      {/* ================= HERO ================= */}
-
-      <main className="relative overflow-hidden px-6 pb-20 pt-10 md:px-12 md:pb-28 md:pt-16">
-        <div className="pointer-events-none absolute -right-40 -top-40 h-[28rem] w-[28rem] rounded-full bg-blue-500/10 blur-3xl" />
-
-        <section id="home" className="mx-auto max-w-7xl">
-          <p className="mb-5 inline-flex rounded-full border border-blue-400/30 bg-blue-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.28em] text-blue-300">
-            Your personal sneaker space
+      <section id="home" className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
+        <div className="max-w-3xl">
+          <p className="text-blue-400 uppercase tracking-[0.3em] text-xs font-bold mb-4">
+            Personal Shoe Collection
           </p>
 
-          <h2 className="max-w-4xl text-4xl font-black leading-[0.98] tracking-[-0.07em] md:text-7xl">
-            Every pair has
-            <span className="block text-blue-500">
-              a story.
+          <h1 className="text-4xl sm:text-6xl font-black leading-tight">
+            Your personal
+            <span className="block text-blue-400">
+              sneaker space.
             </span>
-          </h2>
+          </h1>
 
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-300 md:text-lg">
-            Organize your shoe collection, save your favorite pairs,
-            and discover your next addition.
+          <p className="mt-6 text-white/60 max-w-2xl leading-relaxed">
+            Keep your favorite shoes organized, discover the collection,
+            and share your favorite pairs with others.
           </p>
 
-          <div className="mt-5 flex flex-wrap gap-3">
-            <a
-              href="#collection"
-              className="rounded-full bg-blue-600 px-6 py-3.5 font-semibold text-white transition hover:bg-blue-400"
-            >
-              Explore Collection
-            </a>
-
-            <button
-              onClick={() => {
-                if (!requireLogin()) return
-
-                setShowWishlistForm(true)
-                setShowShoeForm(false)
-              }}
-              className="rounded-full border border-white/10 bg-white/5 px-6 py-3.5 font-semibold transition hover:bg-white/10"
-            >
-              Add to Wishlist
-            </button>
-          </div>
-        </section>
-
-        {/* ================= STATS ================= */}
-
-        <section className="mx-auto mt-8 grid max-w-7xl gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-[#0d1b35]/90 p-5">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
-              Total Shoes
-            </p>
-
-            <h3 className="mt-3 text-5xl font-black">
-              {shoes.length}
-            </h3>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-[#0d1b35]/90 p-5">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
-              Wishlist Items
-            </p>
-
-            <h3 className="mt-3 text-5xl font-black">
-              {wishlist.length}
-            </h3>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-[#0d1b35]/90 p-5">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
-              Website
-            </p>
-
-            <h3 className="mt-3 text-2xl font-black">
-              SOLESPACE
-            </h3>
-          </div>
-        </section>
-
-        {/* ================= ADD SHOE POPUP ================= */}
-
-        {showShoeForm && user && (
-          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-6 md:items-center">
-            <section className="w-full max-w-3xl rounded-3xl border border-blue-200/10 bg-[#0d1b35] p-5 shadow-2xl md:p-10">
-              <div className="mb-8 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-widest text-blue-500">
-                    Your collection
-                  </p>
-
-                  <h2 className="mt-2 text-3xl font-black">
-                    Add New Shoe
-                  </h2>
-                </div>
+          <div className="mt-8 flex flex-wrap gap-3">
+            {user ? (
+              <>
+                <button
+                  onClick={() => setShowShoeForm(true)}
+                  className="bg-white text-[#050d1d] px-6 py-3 rounded-xl font-bold hover:bg-white/90 transition"
+                >
+                  Add to Collection
+                </button>
 
                 <button
-                  type="button"
-                  onClick={() => {
-                    setShowShoeForm(false)
-                    resetShoeForm()
-                  }}
-                  className="rounded-full border border-white/10 px-4 py-2 text-sm hover:bg-white/10"
+                  onClick={() => setShowWishlistForm(true)}
+                  className="border border-white/15 px-6 py-3 rounded-xl font-semibold hover:bg-white/5 transition"
                 >
-                  Close
+                  Add to Wishlist
                 </button>
+              </>
+            ) : (
+              <a
+                href="#collection"
+                className="bg-white text-[#050d1d] px-6 py-3 rounded-xl font-bold"
+              >
+                Explore Collection
+              </a>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-14">
+          <div className="bg-[#0d1b35] border border-white/10 rounded-2xl p-6">
+            <p className="text-white/50 text-sm">Total Shoes</p>
+            <p className="text-3xl font-black mt-2">{shoes.length}</p>
+          </div>
+
+          <div className="bg-[#0d1b35] border border-white/10 rounded-2xl p-6">
+            <p className="text-white/50 text-sm">Wishlist Items</p>
+            <p className="text-3xl font-black mt-2">
+              {user ? wishlist.length : '—'}
+            </p>
+          </div>
+
+          <div className="bg-[#0d1b35] border border-white/10 rounded-2xl p-6">
+            <p className="text-white/50 text-sm">Website</p>
+            <p className="text-3xl font-black mt-2">SOLESPACE</p>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="collection"
+        className="max-w-7xl mx-auto px-4 sm:px-6 pb-20"
+      >
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <div>
+            <p className="text-blue-400 uppercase tracking-[0.2em] text-xs font-bold">
+              My collection
+            </p>
+
+            <h2 className="text-3xl font-black mt-2">
+              The Shoes
+            </h2>
+          </div>
+
+          {user && (
+            <button
+              onClick={() => setShowShoeForm(true)}
+              className="text-sm border border-white/10 px-4 py-2 rounded-xl hover:bg-white/5 transition"
+            >
+              + Add Shoe
+            </button>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="text-white/50 py-10">
+            Loading collection...
+          </div>
+        ) : shoes.length === 0 ? (
+          <div className="border border-dashed border-white/10 rounded-2xl p-10 text-center">
+            <div className="text-5xl mb-4">👟</div>
+
+            <h3 className="text-xl font-bold">
+              No shoes yet
+            </h3>
+
+            <p className="text-white/50 mt-2">
+              The collection is empty.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {shoes.map((shoe) => (
+              <ShoeCard
+                key={shoe.id}
+                shoe={shoe}
+                user={user}
+                onDelete={() => deleteShoe(shoe.id)}
+                ratingStats={ratingStats[shoe.id]}
+                onRate={(rating) => handleRating(shoe.id, rating)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {user && (
+        <section
+          id="wishlist"
+          className="max-w-7xl mx-auto px-4 sm:px-6 pb-20"
+        >
+          <div className="flex items-center justify-between gap-4 mb-8">
+            <div>
+              <p className="text-blue-400 uppercase tracking-[0.2em] text-xs font-bold">
+                Future pickups
+              </p>
+
+              <h2 className="text-3xl font-black mt-2">
+                Wishlist
+              </h2>
+            </div>
+
+            <button
+              onClick={() => setShowWishlistForm(true)}
+              className="text-sm border border-white/10 px-4 py-2 rounded-xl hover:bg-white/5 transition"
+            >
+              + Add Wishlist
+            </button>
+          </div>
+
+          {wishlist.length === 0 ? (
+            <div className="border border-dashed border-white/10 rounded-2xl p-10 text-center">
+              <div className="text-5xl mb-4">❤️</div>
+
+              <h3 className="text-xl font-bold">
+                Your wishlist is empty
+              </h3>
+
+              <p className="text-white/50 mt-2">
+                Add shoes you want to buy in the future.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {wishlist.map((shoe) => (
+                <WishlistCard
+                  key={shoe.id}
+                  shoe={shoe}
+                  onDelete={() => deleteWishlist(shoe.id)}
+                  onMove={() => moveToCollection(shoe)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {showShoeForm && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-[#0d1b35] border border-white/10 rounded-3xl p-6 sm:p-8 my-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-blue-400 text-xs uppercase tracking-[0.2em] font-bold">
+                  Collection
+                </p>
+
+                <h2 className="text-2xl font-black mt-1">
+                  Add New Shoe
+                </h2>
               </div>
 
-              <form onSubmit={handleShoeSubmit} className="space-y-5">
-                <div className="grid gap-5 md:grid-cols-2">
-                  <input
-                    type="text"
-                    name="brand"
-                    value={shoeForm.brand}
-                    onChange={handleShoeChange}
-                    placeholder="Brand *"
-                    required
-                    className="rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none focus:border-blue-500"
-                  />
+              <button
+                onClick={() => {
+                  setShowShoeForm(false)
+                  resetShoeForm()
+                }}
+                className="w-10 h-10 rounded-xl border border-white/10 hover:bg-white/5 transition"
+              >
+                ✕
+              </button>
+            </div>
 
-                  <input
-                    type="text"
-                    name="model"
-                    value={shoeForm.model}
-                    onChange={handleShoeChange}
-                    placeholder="Model Name *"
-                    required
-                    className="rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none focus:border-blue-500"
-                  />
-
-                  <input
-                    type="number"
-                    name="price"
-                    value={shoeForm.price}
-                    onChange={handleShoeChange}
-                    placeholder="Price (৳) *"
-                    min="0"
-                    required
-                    className="rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none focus:border-blue-500"
-                  />
-
-                  <input
-                    type="text"
-                    name="size"
-                    value={shoeForm.size}
-                    onChange={handleShoeChange}
-                    placeholder="Shoe Size *"
-                    required
-                    className="rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none focus:border-blue-500"
-                  />
-
-                  <input
-                    type="date"
-                    name="date"
-                    value={shoeForm.date}
-                    onChange={handleShoeChange}
-                    className="rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none focus:border-blue-500"
-                  />
-
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleShoeImageChange}
-                    className="rounded-2xl border border-dashed border-white/15 bg-[#07142a] px-3 py-3 text-sm"
-                  />
-                </div>
-
-                <textarea
-                  name="notes"
-                  value={shoeForm.notes}
+            <form onSubmit={handleShoeSubmit} className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Brand"
+                  name="brand"
+                  value={shoeForm.brand}
                   onChange={handleShoeChange}
-                  placeholder="Write something about your shoe..."
-                  rows="4"
-                  className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none focus:border-blue-500"
+                  placeholder="Nike"
+                />
+
+                <Input
+                  label="Model"
+                  name="model"
+                  value={shoeForm.model}
+                  onChange={handleShoeChange}
+                  placeholder="Air Jordan 1"
+                />
+
+                <Input
+                  label="Price ($)"
+                  name="price"
+                  type="number"
+                  value={shoeForm.price}
+                  onChange={handleShoeChange}
+                  placeholder="150"
+                />
+
+                <Input
+                  label="Size"
+                  name="size"
+                  value={shoeForm.size}
+                  onChange={handleShoeChange}
+                  placeholder="9"
+                />
+
+                <Input
+                  label="Purchase Date"
+                  name="date"
+                  type="date"
+                  value={shoeForm.date}
+                  onChange={handleShoeChange}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-white/70 mb-2">
+                  Shoe Photo
+                </label>
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleShoeImageChange}
+                  className="block w-full text-sm text-white/60 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-500 file:px-4 file:py-2 file:text-white file:font-semibold"
                 />
 
                 {shoeForm.image && (
                   <img
                     src={shoeForm.image}
-                    alt="Shoe preview"
-                    className="h-56 w-full rounded-2xl object-cover md:w-72"
+                    alt="Preview"
+                    className="mt-4 w-32 h-32 object-cover rounded-2xl border border-white/10"
                   />
                 )}
+              </div>
 
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="w-full rounded-2xl bg-blue-600 py-4 font-semibold text-white hover:bg-blue-400 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Add Shoe to Collection'}
-                </button>
-              </form>
-            </section>
+              <div>
+                <label className="block text-sm text-white/70 mb-2">
+                  Notes
+                </label>
+
+                <textarea
+                  name="notes"
+                  value={shoeForm.notes}
+                  onChange={handleShoeChange}
+                  placeholder="Add some notes..."
+                  rows="4"
+                  className="w-full bg-[#08142a] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-400 resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full bg-blue-500 hover:bg-blue-400 disabled:opacity-50 px-5 py-3 rounded-xl font-bold transition"
+              >
+                {saving ? 'Saving...' : 'Add Shoe'}
+              </button>
+            </form>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ================= COLLECTION ================= */}
+      {showWishlistForm && user && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-[#0d1b35] border border-white/10 rounded-3xl p-6 sm:p-8 my-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-blue-400 text-xs uppercase tracking-[0.2em] font-bold">
+                  Wishlist
+                </p>
 
-        <section id="collection" className="mx-auto mt-10 max-w-7xl">
-          <div className="mb-8 flex items-end justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-widest text-blue-500">
-                Your pairs
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black md:text-4xl">
-                My Collection
-              </h2>
-            </div>
-
-            <span className="rounded-full bg-[#0d1b35] px-4 py-2 text-sm font-semibold">
-              {shoes.length} Shoes
-            </span>
-          </div>
-
-          {shoes.length === 0 ? (
-            <div className="rounded-2xl bg-[#0d1b35] p-7 text-center">
-              <p className="text-5xl">👟</p>
-
-              <h3 className="mt-4 text-xl font-bold">
-                Your collection is empty
-              </h3>
-
-              <p className="mt-2 text-slate-400">
-                Add your first shoe to your collection.
-              </p>
+                <h2 className="text-2xl font-black mt-1">
+                  Add Wishlist Shoe
+                </h2>
+              </div>
 
               <button
                 onClick={() => {
-                  if (!requireLogin()) return
-
-                  setShowShoeForm(true)
                   setShowWishlistForm(false)
+                  resetWishlistForm()
                 }}
-                className="mt-6 rounded-full bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-400"
+                className="w-10 h-10 rounded-xl border border-white/10 hover:bg-white/5 transition"
               >
-                Add First Shoe
+                ✕
               </button>
             </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {shoes.map((shoe) => (
-                <ShoeCard key={shoe.id} shoe={shoe} />
-              ))}
-            </div>
-          )}
-        </section>
 
-        {/* ================= WISHLIST POPUP ================= */}
+            <form onSubmit={handleWishlistSubmit} className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Brand"
+                  name="brand"
+                  value={wishlistForm.brand}
+                  onChange={handleWishlistChange}
+                  placeholder="Adidas"
+                />
 
-        {showWishlistForm && user && (
-          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-6 md:items-center">
-            <section className="w-full max-w-3xl rounded-3xl border border-blue-200/10 bg-[#0d1b35] p-5 shadow-2xl md:p-10">
-              <div className="mb-8 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-widest text-blue-500">
-                    Future purchases
-                  </p>
+                <Input
+                  label="Model"
+                  name="model"
+                  value={wishlistForm.model}
+                  onChange={handleWishlistChange}
+                  placeholder="Samba"
+                />
 
-                  <h2 className="mt-2 text-3xl font-black">
-                    Add to Wishlist ❤️
-                  </h2>
-                </div>
+                <Input
+                  label="Price ($)"
+                  name="price"
+                  type="number"
+                  value={wishlistForm.price}
+                  onChange={handleWishlistChange}
+                  placeholder="120"
+                />
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowWishlistForm(false)
-                    resetWishlistForm()
-                  }}
-                  className="rounded-full border border-white/10 px-4 py-2 text-sm hover:bg-white/10"
-                >
-                  Close
-                </button>
+                <Input
+                  label="Size"
+                  name="size"
+                  value={wishlistForm.size}
+                  onChange={handleWishlistChange}
+                  placeholder="9"
+                />
               </div>
 
-              <form onSubmit={handleWishlistSubmit} className="space-y-5">
-                <div className="grid gap-5 md:grid-cols-2">
-                  <input
-                    type="text"
-                    name="brand"
-                    value={wishlistForm.brand}
-                    onChange={handleWishlistChange}
-                    placeholder="Brand *"
-                    required
-                    className="rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none focus:border-blue-500"
-                  />
+              <div>
+                <label className="block text-sm text-white/70 mb-2">
+                  Shoe Photo
+                </label>
 
-                  <input
-                    type="text"
-                    name="model"
-                    value={wishlistForm.model}
-                    onChange={handleWishlistChange}
-                    placeholder="Model Name *"
-                    required
-                    className="rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none focus:border-blue-500"
-                  />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleWishlistImageChange}
+                  className="block w-full text-sm text-white/60 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-500 file:px-4 file:py-2 file:text-white file:font-semibold"
+                />
 
-                  <input
-                    type="number"
-                    name="price"
-                    value={wishlistForm.price}
-                    onChange={handleWishlistChange}
-                    placeholder="Expected Price (৳) *"
-                    min="0"
-                    required
-                    className="rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none focus:border-blue-500"
+                {wishlistForm.image && (
+                  <img
+                    src={wishlistForm.image}
+                    alt="Wishlist preview"
+                    className="mt-4 w-32 h-32 object-cover rounded-2xl border border-white/10"
                   />
+                )}
+              </div>
 
-                  <input
-                    type="text"
-                    name="size"
-                    value={wishlistForm.size}
-                    onChange={handleWishlistChange}
-                    placeholder="Shoe Size *"
-                    required
-                    className="rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none focus:border-blue-500"
-                  />
-
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleWishlistImageChange}
-                    className="rounded-2xl border border-dashed border-white/15 bg-[#07142a] px-3 py-3 text-sm md:col-span-2"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm text-white/70 mb-2">
+                  Notes
+                </label>
 
                 <textarea
                   name="notes"
@@ -917,111 +988,320 @@ function App() {
                   onChange={handleWishlistChange}
                   placeholder="Why do you want this shoe?"
                   rows="4"
-                  className="w-full rounded-2xl border border-white/10 bg-[#07142a] px-4 py-3.5 outline-none focus:border-blue-500"
+                  className="w-full bg-[#08142a] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-400 resize-none"
                 />
-
-                {wishlistForm.image && (
-                  <img
-                    src={wishlistForm.image}
-                    alt="Wishlist shoe preview"
-                    className="h-56 w-full rounded-2xl object-cover md:w-72"
-                  />
-                )}
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="w-full rounded-2xl bg-blue-500 py-4 font-semibold text-white hover:bg-blue-400 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Save to Wishlist ❤️'}
-                </button>
-              </form>
-            </section>
-          </div>
-        )}
-
-        {/* ================= WISHLIST ================= */}
-
-        <section id="wishlist" className="mx-auto mt-10 max-w-7xl">
-          <div className="mb-8 flex items-end justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-widest text-blue-500">
-                Future purchases
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black md:text-4xl">
-                My Wishlist ❤️
-              </h2>
-            </div>
-
-            <span className="rounded-full bg-[#0d1b35] px-4 py-2 text-sm font-semibold">
-              {wishlist.length} Items
-            </span>
-          </div>
-
-          {wishlist.length === 0 ? (
-            <div className="rounded-2xl bg-[#0d1b35] p-7 text-center">
-              <p className="text-4xl">❤️</p>
-
-              <h3 className="mt-4 text-xl font-bold">
-                Your wishlist is empty
-              </h3>
-
-              <p className="mt-2 text-slate-400">
-                Add shoes you want to buy in the future.
-              </p>
+              </div>
 
               <button
-                onClick={() => {
-                  if (!requireLogin()) return
-
-                  setShowWishlistForm(true)
-                  setShowShoeForm(false)
-                }}
-                className="mt-6 rounded-full bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-400"
+                type="submit"
+                disabled={saving}
+                className="w-full bg-blue-500 hover:bg-blue-400 disabled:opacity-50 px-5 py-3 rounded-xl font-bold transition"
               >
-                Add First Wishlist Shoe
+                {saving ? 'Saving...' : 'Add to Wishlist'}
               </button>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {wishlist.map((shoe) => (
-                <ShoeCard key={shoe.id} shoe={shoe} isWishlist />
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
-
-      {/* ================= LOGIN POPUP ================= */}
-
-      {showLogin && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/70 px-4 py-6">
-          <div className="relative w-full max-w-md">
-            <button
-              type="button"
-              onClick={() => setShowLogin(false)}
-              className="absolute right-3 top-3 z-10 rounded-full border border-gray-200 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-100"
-            >
-              ✕
-            </button>
-
-            <Auth
-              onLogin={(loggedInUser) => {
-                setUser(loggedInUser)
-                setShowLogin(false)
-              }}
-              onCancel={() => setShowLogin(false)}
-            />
+            </form>
           </div>
         </div>
       )}
 
-      {/* ================= FOOTER ================= */}
+      {showLogin && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[#0d1b35] border border-white/10 rounded-3xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-blue-400 text-xs uppercase tracking-[0.2em] font-bold">
+                  SOLESPACE
+                </p>
 
-      <footer className="border-t border-white/10 px-6 py-10 text-center text-xs font-medium uppercase tracking-[0.18em] text-gray-400">
-        © 2026 SOLESPACE. Your shoes, your story.
+                <h2 className="text-2xl font-black mt-1">
+                  {isSignup ? 'Create Account' : 'Welcome Back'}
+                </h2>
+              </div>
+
+              <button
+                onClick={() => setShowLogin(false)}
+                className="w-10 h-10 rounded-xl border border-white/10 hover:bg-white/5"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-sm text-white/70 mb-2">
+                  Email
+                </label>
+
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full bg-[#08142a] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-white/70 mb-2">
+                  Password
+                </label>
+
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="w-full bg-[#08142a] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-400"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={authSaving}
+                className="w-full bg-blue-500 hover:bg-blue-400 disabled:opacity-50 px-5 py-3 rounded-xl font-bold transition"
+              >
+                {authSaving
+                  ? 'Please wait...'
+                  : isSignup
+                    ? 'Create Account'
+                    : 'Login'}
+              </button>
+            </form>
+
+            <button
+              onClick={() => setIsSignup(!isSignup)}
+              className="w-full mt-5 text-sm text-white/50 hover:text-white transition"
+            >
+              {isSignup
+                ? 'Already have an account? Login'
+                : "Don't have an account? Create one"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <footer className="border-t border-white/10 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center text-white/40 text-sm">
+          © {new Date().getFullYear()} SOLESPACE. Your personal shoe collection.
+        </div>
       </footer>
+    </div>
+  )
+}
+
+function Input({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+}) {
+  return (
+    <div>
+      <label className="block text-sm text-white/70 mb-2">
+        {label}
+      </label>
+
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full bg-[#08142a] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-400"
+      />
+    </div>
+  )
+}
+
+function ShoeImage({ image, alt }) {
+  if (!image) {
+    return (
+      <div className="w-full h-56 bg-[#08142a] flex items-center justify-center text-6xl">
+        👟
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={image}
+      alt={alt}
+      className="w-full h-56 object-cover"
+    />
+  )
+}
+
+function ShoeCard({
+  shoe,
+  user,
+  onDelete,
+  ratingStats,
+  onRate,
+}) {
+  const average = ratingStats?.average || 0
+  const count = ratingStats?.count || 0
+
+  return (
+    <div className="bg-[#0d1b35] border border-white/10 rounded-2xl overflow-hidden">
+      <ShoeImage
+        image={shoe.image}
+        alt={`${shoe.brand} ${shoe.model}`}
+      />
+
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-blue-400 text-xs uppercase tracking-wider font-bold">
+              {shoe.brand}
+            </p>
+
+            <h3 className="text-xl font-bold mt-1">
+              {shoe.model}
+            </h3>
+          </div>
+
+          {user && (
+            <button
+              onClick={onDelete}
+              className="text-white/30 hover:text-red-400 transition"
+              title="Delete"
+            >
+              🗑️
+            </button>
+          )}
+        </div>
+
+        <div className="mt-5 space-y-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-white/50">Price</span>
+
+            <span className="font-bold">
+              ${Number(shoe.price || 0).toLocaleString()}
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span className="text-white/50">Size</span>
+
+            <span>{shoe.size}</span>
+          </div>
+
+          {shoe.date && (
+            <div className="flex justify-between">
+              <span className="text-white/50">Purchased</span>
+
+              <span>{shoe.date}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 pt-4 border-t border-white/10">
+          <p className="text-white/50 text-sm mb-2">
+            Visitor Rating
+          </p>
+
+          <div className="flex items-center gap-2">
+            <span className="text-yellow-400 text-sm">
+              {average > 0
+                ? `${average.toFixed(1)} / 5`
+                : 'No ratings yet'}
+            </span>
+
+            {count > 0 && (
+              <span className="text-white/40 text-xs">
+                ({count} {count === 1 ? 'rating' : 'ratings'})
+              </span>
+            )}
+          </div>
+
+          <div className="flex gap-1 mt-3">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                onClick={() => onRate(star)}
+                className="text-2xl text-white/30 hover:text-yellow-400 hover:scale-110 transition"
+                title={`Give ${star} star`}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {shoe.notes && (
+          <div className="mt-5 pt-4 border-t border-white/10">
+            <p className="text-white/50 text-sm leading-relaxed">
+              {shoe.notes}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function WishlistCard({ shoe, onDelete, onMove }) {
+  return (
+    <div className="bg-[#0d1b35] border border-white/10 rounded-2xl overflow-hidden">
+      <ShoeImage
+        image={shoe.image}
+        alt={`${shoe.brand} ${shoe.model}`}
+      />
+
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-blue-400 text-xs uppercase tracking-wider font-bold">
+              {shoe.brand}
+            </p>
+
+            <h3 className="text-xl font-bold mt-1">
+              {shoe.model}
+            </h3>
+          </div>
+
+          <button
+            onClick={onDelete}
+            className="text-white/30 hover:text-red-400 transition"
+            title="Delete"
+          >
+            🗑️
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-white/50">Price</span>
+
+            <span className="font-bold">
+              ${Number(shoe.price || 0).toLocaleString()}
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span className="text-white/50">Size</span>
+
+            <span>{shoe.size}</span>
+          </div>
+        </div>
+
+        {shoe.notes && (
+          <div className="mt-5 pt-4 border-t border-white/10">
+            <p className="text-white/50 text-sm leading-relaxed">
+              {shoe.notes}
+            </p>
+          </div>
+        )}
+
+        <button
+          onClick={onMove}
+          className="w-full mt-5 bg-white text-[#050d1d] hover:bg-white/90 px-4 py-3 rounded-xl font-bold transition"
+        >
+          Move to Collection
+        </button>
+      </div>
     </div>
   )
 }
