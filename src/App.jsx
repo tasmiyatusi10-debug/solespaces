@@ -19,6 +19,8 @@ function App() {
   const [showShoeForm, setShowShoeForm] = useState(false)
   const [showWishlistForm, setShowWishlistForm] = useState(false)
   const [showLogin, setShowLogin] = useState(false)
+  const [showEditForm, setShowEditForm] = useState(false)
+  const [editingShoe, setEditingShoe] = useState(null)
 
   // Rating success popup
   const [showRatingSuccess, setShowRatingSuccess] = useState(false)
@@ -32,6 +34,18 @@ function App() {
     notes: '',
     image: '',
   })
+
+  const [editForm, setEditForm] = useState({
+    brand: '',
+    model: '',
+    price: '',
+    size: '',
+    date: '',
+    notes: '',
+    image: '',
+  })
+
+  const [editImageFile, setEditImageFile] = useState(null)
 
   const [wishlistForm, setWishlistForm] = useState({
     brand: '',
@@ -280,6 +294,85 @@ function App() {
     } catch (error) {
       console.error(error)
       alert('Something went wrong while adding the shoe.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // OPEN EDIT SHOE
+  const openEditShoe = (shoe) => {
+    if (!user || shoe.owner_id !== user.id) return
+
+    setEditingShoe(shoe)
+
+    setEditForm({
+      brand: shoe.brand || '',
+      model: shoe.model || '',
+      price: shoe.price ?? '',
+      size: shoe.shoe_size || '',
+      date: shoe.purchase_date || '',
+      notes: shoe.notes || '',
+      image: shoe.image_url || '',
+    })
+
+    setEditImageFile(null)
+    setShowEditForm(true)
+  }
+
+  // UPDATE SHOE
+  const handleEditShoe = async (e) => {
+    e.preventDefault()
+
+    if (!user || !editingShoe) return
+
+    if (
+      !editForm.brand ||
+      !editForm.model ||
+      !editForm.price ||
+      !editForm.size
+    ) {
+      alert('Please fill in Brand, Model, Price and Size.')
+      return
+    }
+
+    try {
+      setSaving(true)
+
+      let imageUrl = editForm.image || null
+
+      // Only upload a new image if the user selected one.
+      if (editImageFile) {
+        imageUrl = await uploadImage(editImageFile)
+      }
+
+      const { error } = await supabase
+        .from('shoes')
+        .update({
+          brand: editForm.brand,
+          model: editForm.model,
+          price: Number(editForm.price),
+          shoe_size: editForm.size,
+          purchase_date: editForm.date || null,
+          notes: editForm.notes,
+          image_url: imageUrl,
+        })
+        .eq('id', editingShoe.id)
+        .eq('owner_id', user.id)
+
+      if (error) {
+        console.error('Update shoe error:', error)
+        alert('Could not update shoe. Please check Supabase policy.')
+        return
+      }
+
+      setShowEditForm(false)
+      setEditingShoe(null)
+      setEditImageFile(null)
+
+      await loadData()
+    } catch (error) {
+      console.error(error)
+      alert('Something went wrong while updating the shoe.')
     } finally {
       setSaving(false)
     }
@@ -746,6 +839,7 @@ function App() {
                   }
                   onRate={submitRating}
                   onDelete={handleDeleteShoe}
+                  onEdit={openEditShoe}
                 />
               ))}
             </div>
@@ -921,6 +1015,136 @@ function App() {
               className="w-full rounded-xl bg-blue-500 py-3 font-semibold transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Add Shoe'}
+            </button>
+          </form>
+        </Modal>
+      )}
+
+      {/* =========================
+          EDIT SHOE MODAL
+      ========================== */}
+      {showEditForm && editingShoe && (
+        <Modal
+          title="Edit Shoe"
+          onClose={() => {
+            setShowEditForm(false)
+            setEditingShoe(null)
+            setEditImageFile(null)
+          }}
+        >
+          <form
+            onSubmit={handleEditShoe}
+            className="space-y-4"
+          >
+            <Input
+              label="Brand"
+              value={editForm.brand}
+              onChange={(e) =>
+                setEditForm({
+                  ...editForm,
+                  brand: e.target.value,
+                })
+              }
+              placeholder="Nike"
+            />
+
+            <Input
+              label="Model"
+              value={editForm.model}
+              onChange={(e) =>
+                setEditForm({
+                  ...editForm,
+                  model: e.target.value,
+                })
+              }
+              placeholder="Air Jordan 1"
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Price ($)"
+                type="number"
+                value={editForm.price}
+                onChange={(e) =>
+                  setEditForm({
+                    ...editForm,
+                    price: e.target.value,
+                  })
+                }
+                placeholder="150"
+              />
+
+              <Input
+                label="Size"
+                value={editForm.size}
+                onChange={(e) =>
+                  setEditForm({
+                    ...editForm,
+                    size: e.target.value,
+                  })
+                }
+                placeholder="42"
+              />
+            </div>
+
+            <Input
+              label="Purchase Date"
+              type="date"
+              value={editForm.date}
+              onChange={(e) =>
+                setEditForm({
+                  ...editForm,
+                  date: e.target.value,
+                })
+              }
+            />
+
+            <div>
+              <label className="mb-2 block text-sm text-white/70">
+                Replace Shoe Photo
+              </label>
+
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) =>
+                  setEditImageFile(
+                    e.target.files?.[0] || null
+                  )
+                }
+                className="w-full rounded-xl border border-white/10 bg-[#050d1d] p-3 text-sm text-white/60"
+              />
+
+              <p className="mt-2 text-xs text-white/35">
+                Leave this empty to keep the current photo.
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-white/70">
+                Notes
+              </label>
+
+              <textarea
+                value={editForm.notes}
+                onChange={(e) =>
+                  setEditForm({
+                    ...editForm,
+                    notes: e.target.value,
+                  })
+                }
+                placeholder="Tell something about this shoe..."
+                rows="3"
+                className="w-full rounded-xl border border-white/10 bg-[#050d1d] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-blue-400/50"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full rounded-xl bg-blue-500 py-3 font-semibold transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? 'Saving Changes...' : 'Save Changes'}
             </button>
           </form>
         </Modal>
@@ -1132,6 +1356,7 @@ function ShoeCard({
   rated,
   onRate,
   onDelete,
+  onEdit,
 }) {
   const isOwner =
     user && user.id === shoe.owner_id
@@ -1158,12 +1383,21 @@ function ShoeCard({
           </div>
 
           {isOwner && (
-            <button
-              onClick={() => onDelete(shoe.id)}
-              className="text-xs text-red-400/70 transition hover:text-red-400"
-            >
-              Delete
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => onEdit(shoe)}
+                className="text-xs text-blue-400/80 transition hover:text-blue-300"
+              >
+                Edit
+              </button>
+
+              <button
+                onClick={() => onDelete(shoe.id)}
+                className="text-xs text-red-400/70 transition hover:text-red-400"
+              >
+                Delete
+              </button>
+            </div>
           )}
         </div>
 
