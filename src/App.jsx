@@ -639,11 +639,11 @@ function App() {
           NAVBAR
       ========================== */}
       <nav className="sticky top-0 z-40 border-b border-white/10 bg-[#050d1d]/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-3 sm:px-5 sm:py-4">
 
           <a
             href="#home"
-            className="text-xl font-bold tracking-[0.2em] text-white"
+            className="shrink-0 text-base font-bold tracking-[0.15em] text-white sm:text-xl sm:tracking-[0.2em]"
           >
             SOLESPACE
           </a>
@@ -673,19 +673,19 @@ function App() {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {user ? (
               <>
                 <button
                   onClick={() => setShowShoeForm(true)}
-                  className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-400"
+                  className="shrink-0 rounded-xl bg-blue-500 px-2.5 py-2 text-xs font-semibold text-white transition hover:bg-blue-400 sm:px-4 sm:text-sm"
                 >
                   + Add Shoe
                 </button>
 
                 <button
                   onClick={handleLogout}
-                  className="hidden rounded-xl border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:border-white/20 hover:text-white sm:block"
+                  className="shrink-0 rounded-xl border border-white/10 px-2.5 py-2 text-xs text-white/70 transition hover:border-white/20 hover:text-white sm:px-4 sm:text-sm"
                 >
                   Logout
                 </button>
